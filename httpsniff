@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+import cgi
+import time
+import BaseHTTPServer
+import string
+import sys
+
+class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    def printHeaders(self):
+        self.headers
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+
+    def do_GET(self):
+        """Respond to a GET request."""
+        self.send_response(200)
+        self.send_header(u"Content-type", u"text/html")
+        self.end_headers()
+        self.wfile.write(u"""<html><head><title>Title goes here.</title></head>
+            <body>
+                <p>Test Page</p>
+                <p>You accessed path: %s</p>
+                <p>
+                    <form enctype="multipart/form-data" method="post">
+                        File Upload: <input type="file" name="file"/>
+                        <br>
+                        <button type="submit">Upload</button>
+                    </form>
+                </p>
+            </body>
+        </html>""" % self.path)
+
+    def do_POST(self):
+        self.send_response(200)
+        self.send_header(u"Content-type", u"text/html")
+        self.end_headers()
+
+        data = self.rfile.read(int(self.headers.getheader('Content-Length')))
+        dump = self.logged_message
+
+        for line in self.headers.headers:
+            dump += line.strip() + u"\n"
+
+        dump += u"\n"
+
+        p = 0
+        line = 16
+        alen = len(u"%x" % len(data))
+        while p<len(data):
+            dump += u"%0*X: " % (alen, p)
+            for q in range(0, line):
+                if (p+q<len(data)):
+                    dump += u"%02x " % ord(data[p+q])
+                else:
+                    dump += u"   "
+            dump += u" |"
+            for q in range(0, line):
+                if (p+q<len(data)):
+                    c = data[p+q]
+                    dump += u"%s" % (c if c in string.printable and ord(c)>=32 else u"\u00B7")
+                else:
+                    dump += u" "
+            p += line
+            dump += "|\n"
+
+        self.wfile.write(u"<p style='font-family: monospace; white-space: pre;'>%s</p>" % cgi.escape(dump).encode('ascii', 'xmlcharrefreplace'))
+        sys.stdout.write(dump)
+
+    def log_request(self, code='-', size='-'):
+        self.logged_message = '"%s" %s %s' % (self.requestline, str(code), str(size))
+        self.log_message('"%s" %s %s',
+                         self.requestline, str(code), str(size))
+
+if __name__ == '__main__':
+
+    param_error = False
+    if len(sys.argv)>=2:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            param_error = True
+    else:
+        param_error = True
+
+    if param_error:
+        print("Usage: httpsniff <port> [ <interface> ]")
+        sys.exit(1)
+
+    interface = sys.argv[2] if len(sys.argv)>2 else ''
+    server_class = BaseHTTPServer.HTTPServer
+    httpd = server_class((interface, port), MyHandler)
+    print time.asctime(), "Server Started, listening, try: http://%s:%s%s" % (
+        '127.0.0.1' if interface == '' else interface,
+        port,
+        ' or with any other IP or host name for this machine' if interface == '' else ''
+    )
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    httpd.server_close()
+    print time.asctime(), "Server Stoped"
